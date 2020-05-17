@@ -20,19 +20,16 @@ public class InfluxDBListener implements ITestListener {
 	@Override
 	public void onTestSuccess(ITestResult iTestResult) {
 		this.postTestMethodStatus(iTestResult, "PASS");
-		this.postTestBrowser(iTestResult.getTestContext());
 	}
 
 	@Override
 	public void onTestFailure(ITestResult iTestResult) {
 		this.postTestMethodStatus(iTestResult, "FAIL");
-		this.postTestBrowser(iTestResult.getTestContext());
 	}
 
 	@Override
 	public void onTestSkipped(ITestResult iTestResult) {
 		this.postTestMethodStatus(iTestResult, "SKIPPED");
-		this.postTestBrowser(iTestResult.getTestContext());
 	}
 
 	@Override
@@ -49,10 +46,20 @@ public class InfluxDBListener implements ITestListener {
 	}
 
 	private void postTestMethodStatus(ITestResult iTestResult, String status) {
+		String executedBrowser = String.format("%s_%s", ((RemoteWebDriver) iTestResult.getTestContext().getAttribute("driver")).getCapabilities().getBrowserName()
+				, ((RemoteWebDriver) iTestResult.getTestContext().getAttribute("driver")).getCapabilities().getVersion());
+		String errorMessage = "";
+		if (!status.equals("PASS"))
+			errorMessage = iTestResult.getThrowable().getMessage();
 		Point point = Point.measurement("testmethod").time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-				.tag("testclass", iTestResult.getTestClass().getName()).tag("name", iTestResult.getName())
-				.tag("description", iTestResult.getMethod().getDescription()).tag("result", status)
-				.addField("duration", (iTestResult.getEndMillis() - iTestResult.getStartMillis())).build();
+				.tag("testclass", iTestResult.getTestClass().getName())
+				.tag("name", iTestResult.getName())
+				.tag("description", iTestResult.getMethod().getDescription())
+				.tag("error", errorMessage)
+				.tag("browser", executedBrowser)
+				.tag("result", status)
+				.addField("duration", (iTestResult.getEndMillis() - iTestResult.getStartMillis()))
+				.build();
 		UpdateResults.post(point);
 	}
 
@@ -60,14 +67,6 @@ public class InfluxDBListener implements ITestListener {
 		Point point = Point.measurement("testclass").time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
 				.tag("name", iTestContext.getAllTestMethods()[0].getTestClass().getName())
 				.addField("duration", (iTestContext.getEndDate().getTime() - iTestContext.getStartDate().getTime()))
-				.build();
-		UpdateResults.post(point);
-	}
-
-	private void postTestBrowser(ITestContext iTestContext) {
-		Point point = Point.measurement("browser").time(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-				.tag("browser", ((RemoteWebDriver) iTestContext.getAttribute("driver")).getCapabilities().getBrowserName())
-				.addField("version", ((RemoteWebDriver) iTestContext.getAttribute("driver")).getCapabilities().getVersion())
 				.build();
 		UpdateResults.post(point);
 	}
